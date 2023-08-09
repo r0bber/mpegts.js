@@ -28,6 +28,7 @@ import { AACADTSParser, AACFrame, AACLOASParser, AudioSpecificConfig, LOASAACFra
 import { MPEG4AudioObjectTypes, MPEG4SamplingFrequencyIndex } from './mpeg4-audio';
 import { PESPrivateData, PESPrivateDataDescriptor } from './pes-private-data';
 import { readSCTE35, SCTE35Data } from './scte35';
+import { readStreamevent } from './streamevent';
 import { H265AnnexBParser, H265NaluHVC1, H265NaluPayload, H265NaluType, HEVCDecoderConfigurationRecord } from './h265';
 import H265Parser from './h265-parser';
 import { SMPTE2038Data, smpte2038parse } from './smpte2038';
@@ -99,6 +100,8 @@ class TSDemuxer extends BaseDemuxer {
 
     private timescale_ = 90;
     private duration_ = 0;
+    private currentTimeInMs_ = 0;
+    private startTimeInMs_ = 0;
 
     private pat_: PAT;
     private current_program_: number;
@@ -300,7 +303,7 @@ class TSDemuxer extends BaseDemuxer {
             }
 
             if (adaptation_field_control == 0x01 || adaptation_field_control == 0x03) {
-                if (pid === 0 || pid === this.current_pmt_pid_ || (this.pmt_ != undefined && this.pmt_.pid_stream_type[pid] === StreamType.kSCTE35)) {  // PAT(pid === 0) or PMT or SCTE35
+                if (pid === 0 || pid === this.current_pmt_pid_ || (this.pmt_ != undefined && (this.pmt_.pid_stream_type[pid] === StreamType.kSCTE35 || this.pmt_.pid_stream_type[pid] === StreamType.STREAMEVENT))) {  // PAT(pid === 0) or PMT or SCTE35
                     let ts_payload_length = 188 - ts_payload_start_index;
 
                     this.handleSectionSlice(chunk,
@@ -548,6 +551,8 @@ class TSDemuxer extends BaseDemuxer {
             this.parsePMT(data);
         } else if (this.pmt_ != undefined && this.pmt_.scte_35_pids[pid]) {
             this.parseSCTE35(data);
+        } else if (this.pmt_ != undefined && this.pmt_.streamevent_pids[pid]) {
+            this.parseStreamevent(data);
         }
     }
 
@@ -594,6 +599,10 @@ class TSDemuxer extends BaseDemuxer {
                     dts = pts;
                 }
             }
+
+            // Forward to streamevent
+            this.currentTimeInMs_ = pts / this.timescale_;
+            this.startTimeInMs_ = this.startTimeInMs_ || this.currentTimeInMs_;
 
             let payload_start_index = 6 + 3 + PES_header_data_length;
             let payload_length: number;
@@ -863,6 +872,8 @@ class TSDemuxer extends BaseDemuxer {
                 pmt.timed_id3_pids[elementary_PID] = true;
             } else if (stream_type === StreamType.kSCTE35) {
                 pmt.scte_35_pids[elementary_PID] = true;
+            } else if (stream_type === StreamType.STREAMEVENT){
+                pmt.streamevent_pids[elementary_PID] = true;
             }
 
             i += 5 + ES_info_length;
@@ -880,6 +891,18 @@ class TSDemuxer extends BaseDemuxer {
                 this.has_audio_ = true;
             }
         }
+    }
+
+    private parseStreamevent(data: Uint8Array): void {
+        try {
+            const streamevent = readStreamevent(data)
+            if (streamevent.private_data_byte.size > 2) {
+                Log.v(this.TAG, `parseStreamevent() " ${JSON.stringify(streamevent)}`);
+            }
+        } catch (error) {
+            
+        }
+        
     }
 
     private parseSCTE35(data: Uint8Array): void {

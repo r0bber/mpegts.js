@@ -16,6 +16,7 @@ export declare enum StreamType {
     kEAC3 = 135,
     kID3 = 21,
     kSCTE35 = 134,
+    STREAMEVENT = 12,
     kH264 = 27,
     kH265 = 36
 }
@@ -44,6 +45,9 @@ export declare class PMT {
         [pid: number]: boolean;
     };
     scte_35_pids: {
+        [pid: number]: boolean;
+    };
+    streamevent_pids: {
         [pid: number]: boolean;
     };
     smpte2038_pids: {

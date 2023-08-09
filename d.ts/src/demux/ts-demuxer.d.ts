@@ -8,6 +8,8 @@ declare class TSDemuxer extends BaseDemuxer {
     private media_info_;
     private timescale_;
     private duration_;
+    private currentTimeInMs_;
+    private startTimeInMs_;
     private pat_;
     private current_program_;
     private current_pmt_pid_;
@@ -62,6 +64,7 @@ declare class TSDemuxer extends BaseDemuxer {
     private parsePES;
     private parsePAT;
     private parsePMT;
+    private parseStreamevent;
     private parseSCTE35;
     private parseH264Payload;
     private parseH265Payload;
